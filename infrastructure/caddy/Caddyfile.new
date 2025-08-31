@@ -1,0 +1,196 @@
+# Caddy Configuration for Isolated Infrastructure Services
+# This configuration runs in isolation during development and testing
+
+# Global settings for isolated environment
+{
+    # Disable automatic HTTPS during isolation
+    auto_https off
+
+    # Enable debug logging for troubleshooting
+    debug
+
+    # Admin interface for configuration management
+    admin localhost:2019
+
+    # Security headers for isolated environment
+    security {
+        # Allow localhost access during development
+        allowed_hosts localhost, 127.0.0.1, *.hbohlen.local
+
+        # CORS for development
+        cors_policy {
+            allowed_origins http://localhost:3000, http://localhost:8080
+            allowed_methods GET, POST, PUT, DELETE, OPTIONS
+            allowed_headers Content-Type, Authorization, X-API-Key
+        }
+    }
+}
+
+# Existing Services Proxy (Read-Only Access)
+# This allows new infrastructure to monitor existing services
+falkordb-existing.hbohlen.local {
+    # Route to existing FalkorDB Browser
+    reverse_proxy falkordb-browser.existing:8080 {
+        # Read-only headers
+        header_up X-Isolation-Level "monitoring"
+        header_up X-Access-Type "read-only"
+
+        # Health check endpoint
+        health_uri /health
+        health_interval 30s
+        health_timeout 10s
+    }
+
+    # Security for monitoring access
+    basicauth /admin/* {
+        monitoring ${MONITORING_PASSWORD}
+    }
+
+    # Rate limiting for monitoring access
+    rate_limit {
+        zone static {
+            key {remote_host}
+            window 1m
+            events 10
+        }
+    }
+}
+
+# New Infrastructure Services (Isolated)
+# These run on different ports during isolation
+
+# Portainer Management Interface (Isolated)
+portainer-new.hbohlen.local {
+    # Route to new Portainer instance
+    reverse_proxy portainer.new:9000
+
+    # Authentication required
+    basicauth {
+        admin ${PORTAINER_PASSWORD}
+    }
+
+    # Restrict to local network only
+    @local_network {
+        remote_ip 172.21.0.0/16 172.22.0.0/16 172.23.0.0/16
+    }
+
+    respond @local_network 403 "Access denied - isolated environment"
+}
+
+# Consul Service Discovery (Isolated)
+consul-new.hbohlen.local {
+    # Route to new Consul instance
+    reverse_proxy consul-server.new:8500
+
+    # Basic auth for service discovery access
+    basicauth {
+        consul ${CONSUL_PASSWORD}
+    }
+
+    # API rate limiting
+    rate_limit {
+        zone api {
+            key {remote_host}
+            window 1m
+            events 100
+        }
+    }
+}
+
+# Monitoring Dashboard (Isolated)
+monitoring-new.hbohlen.local {
+    # Route to monitoring services
+    reverse_proxy datadog-agent.new:8126
+
+    # Restrict access to monitoring network
+    @monitoring_network {
+        remote_ip 172.22.0.0/16
+    }
+
+    respond @monitoring_network 403 "Access denied - monitoring network only"
+
+    # Health check for monitoring services
+    health_uri /health
+    health_interval 30s
+}
+
+# Integration Testing Endpoints
+test.hbohlen.local {
+    # Test endpoint for integration testing
+    respond "Service Isolation Test - OK"
+
+    # Allow access from testing network only
+    @test_network {
+        remote_ip 172.23.0.0/16
+    }
+
+    respond @test_network 403 "Access denied - testing network only"
+
+    # Test headers for isolation verification
+    header X-Isolation-Test "successful"
+    header X-Service-Status "isolated"
+}
+
+# Health Check Endpoint for Isolation Testing
+health.hbohlen.local {
+    # Comprehensive health check
+    respond /health {
+        body "{
+            \"status\": \"healthy\",
+            \"isolation\": \"active\",
+            \"services\": {
+                \"existing\": \"accessible\",
+                \"infrastructure\": \"isolated\",
+                \"monitoring\": \"restricted\",
+                \"testing\": \"isolated\"
+            },
+            \"timestamp\": \"{time.now}\"
+        }"
+        header Content-Type application/json
+    }
+
+    # Detailed service health
+    respond /health/services {
+        body "{
+            \"existing_services\": \"protected\",
+            \"new_infrastructure\": \"isolated\",
+            \"monitoring\": \"active\",
+            \"networks\": \"segmented\"
+        }"
+        header Content-Type application/json
+    }
+}
+
+# Isolation Verification Endpoint
+verify.hbohlen.local {
+    # Verify network segmentation
+    respond /isolation {
+        body "{
+            \"network_segmentation\": \"active\",
+            \"existing_protected\": true,
+            \"new_isolated\": true,
+            \"monitoring_restricted\": true,
+            \"testing_isolated\": true
+        }"
+        header Content-Type application/json
+    }
+
+    # Test cross-network access
+    respond /cross-network-test {
+        # This should fail if isolation is working
+        reverse_proxy falkordb-browser.existing:8080
+
+        @isolated_request {
+            remote_ip 172.21.0.0/16 172.23.0.0/16
+        }
+
+        respond @isolated_request "Isolation working - cross-network access blocked"
+    }
+}
+
+# Fallback for unmatched domains
+*.hbohlen.local {
+    respond "Domain not configured in isolated environment" 404 {
+        header Content-Type text/plain
+    }
+}

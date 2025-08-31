@@ -1,0 +1,310 @@
+# Service Isolation Configuration for hbohlen.io Personal Cloud
+# This configuration implements network and resource isolation for brownfield enhancements
+
+version: '3.8'
+
+# Isolated networks for different service layers
+networks:
+  # Existing services network (protected)
+  existing-services:
+    driver: bridge
+    internal: false  # Allow external access for existing services
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+  # New infrastructure services (isolated during development)
+  infrastructure-services:
+    driver: bridge
+    internal: true   # No external access during development
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+  # Monitoring and observability (isolated but needs external access)
+  monitoring-services:
+    driver: bridge
+    internal: false
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+
+  # Development and testing (completely isolated)
+  development-services:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.23.0.0/16
+
+# Existing services (PROTECTED - DO NOT MODIFY)
+services:
+  # FalkorDB Browser - Existing production service
+  falkordb-browser:
+    image: falkordb/falkordb-browser:latest
+    container_name: hbohlen-falkordb-existing
+    restart: unless-stopped
+    ports:
+      - "8080:8080"  # Keep existing port mapping
+    environment:
+      - FALKORDB_URL=http://falkordb:6379
+    networks:
+      existing-services:
+        aliases:
+          - falkordb-browser.existing
+    labels:
+      - "isolation.level=protected"
+      - "service.type=existing"
+      - "monitoring.enabled=true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # FalkorDB database - Existing production database
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: hbohlen-falkordb-db-existing
+    restart: unless-stopped
+    ports:
+      - "6379:6379"  # Keep existing port mapping
+    volumes:
+      - falkordb_data:/data
+    networks:
+      existing-services:
+        aliases:
+          - falkordb-db.existing
+    labels:
+      - "isolation.level=protected"
+      - "service.type=database"
+      - "backup.enabled=true"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+# New Infrastructure Services (ISOLATED)
+services:
+  # Caddy Reverse Proxy - New infrastructure (isolated)
+  caddy-new:
+    image: caddy:latest
+    container_name: hbohlen-caddy-new
+    restart: unless-stopped
+    ports:
+      - "8081:80"    # Different port during isolation
+      - "8443:443"   # Different port during isolation
+    volumes:
+      - ./caddy/Caddyfile.new:/etc/caddy/Caddyfile
+      - caddy_new_data:/data
+    networks:
+      infrastructure-services:
+        aliases:
+          - caddy.new
+      existing-services:  # Read-only access to existing services
+        aliases:
+          - caddy.monitor
+    labels:
+      - "isolation.level=isolated"
+      - "service.type=infrastructure"
+      - "testing.phase=development"
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    profiles:
+      - infrastructure
+
+  # Portainer - New container management (isolated)
+  portainer-new:
+    image: portainer/portainer-ce:latest
+    container_name: hbohlen-portainer-new
+    restart: unless-stopped
+    ports:
+      - "9001:9000"  # Different port during isolation
+      - "8001:8000"  # Different port during isolation
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_new_data:/data
+    networks:
+      infrastructure-services:
+        aliases:
+          - portainer.new
+    labels:
+      - "isolation.level=isolated"
+      - "service.type=management"
+      - "testing.phase=development"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/api/system/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    profiles:
+      - infrastructure
+
+  # Consul Server - New service discovery (isolated)
+  consul-server-new:
+    image: consul:latest
+    container_name: hbohlen-consul-server-new
+    restart: unless-stopped
+    ports:
+      - "8501:8500"  # Different port during isolation
+    command: "agent -server -bootstrap-expect=1 -ui -client=0.0.0.0"
+    networks:
+      infrastructure-services:
+        aliases:
+          - consul-server.new
+    labels:
+      - "isolation.level=isolated"
+      - "service.type=discovery"
+      - "testing.phase=development"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/v1/status/leader"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    profiles:
+      - infrastructure
+
+# Monitoring Services (ISOLATED WITH EXTERNAL ACCESS)
+services:
+  # Datadog Agent - New monitoring (isolated but needs external access)
+  datadog-agent-new:
+    image: datadog/agent:latest
+    container_name: hbohlen-datadog-agent-new
+    restart: unless-stopped
+    environment:
+      - DD_API_KEY=${DD_API_KEY}
+      - DD_SITE=datadoghq.eu
+      - DD_HOSTNAME=hbohlen-io-new
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+    networks:
+      monitoring-services:
+        aliases:
+          - datadog-agent.new
+      infrastructure-services:  # Monitor new infrastructure
+      existing-services:        # Read-only monitoring of existing
+    labels:
+      - "isolation.level=monitoring"
+      - "service.type=monitoring"
+      - "testing.phase=development"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    profiles:
+      - monitoring
+
+# Development and Testing Services (COMPLETELY ISOLATED)
+services:
+  # Integration Testing Service
+  integration-tester:
+    image: curlimages/curl:latest
+    container_name: hbohlen-integration-tester
+    networks:
+      infrastructure-services:  # Test new infrastructure
+      existing-services:        # Test existing services
+      monitoring-services:      # Test monitoring
+    labels:
+      - "isolation.level=testing"
+      - "service.type=testing"
+    profiles:
+      - testing
+    command: >
+      sh -c "
+        echo 'Testing service isolation...' &&
+        curl -f http://falkordb-browser.existing:8080/health &&
+        echo '✅ Existing service accessible' &&
+        curl -f http://caddy.new:80 &&
+        echo '✅ New infrastructure accessible' &&
+        curl -f http://datadog-agent.new:8126 &&
+        echo '✅ Monitoring accessible' &&
+        echo 'Service isolation test complete'
+      "
+
+# Volumes for isolated services
+volumes:
+  falkordb_data:
+    labels:
+      - "isolation.level=protected"
+      - "backup.enabled=true"
+
+  caddy_new_data:
+    labels:
+      - "isolation.level=isolated"
+
+  portainer_new_data:
+    labels:
+      - "isolation.level=isolated"
+
+# Network connectivity rules
+networks:
+  existing-services:
+    labels:
+      - "isolation.level=protected"
+      - "access.level=production"
+
+  infrastructure-services:
+    labels:
+      - "isolation.level=isolated"
+      - "access.level=development"
+
+  monitoring-services:
+    labels:
+      - "isolation.level=monitoring"
+      - "access.level=restricted"
+
+  development-services:
+    labels:
+      - "isolation.level=testing"
+      - "access.level=isolated"
