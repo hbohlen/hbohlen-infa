@@ -2,20 +2,22 @@
 
 {
   imports = [
-    # This is the key hardware-specific import for your laptop.
-    # It handles NVIDIA drivers, audio, keyboard, and power management.
+    # This is the key hardware-specific import for your laptop from nixos-hardware.
+    # It handles the base configuration for your Intel CPU and NVIDIA PRIME graphics.
     "${builtins.fetchGit { url = "https://github.com/NixOS/nixos-hardware.git"; }}/asus/zephyrus/g603h"
   ];
 
   # Bootloader, Kernel, and Hardware Tweaks
   boot = {
-    # Use the latest kernel for best support with supergfxctl
+    # Use the latest kernel for the best hardware support
     kernelPackages = pkgs.linuxPackages_latest;
     loader = {
       systemd-boot.enable = true;
       efi.canTouchEfiVariables = true;
     };
-    # Fix backlight control in hybrid graphics mode
+
+    # Kernel parameters from asus/zephyrus/shared/backlight.nix
+    # These fix screen brightness control in hybrid graphics mode.
     kernelParams = [
       "quiet"
       "splash"
@@ -25,30 +27,25 @@
     ];
   };
   
-  # HiDPI console font for better readability in TTY
+  # HiDPI console font for better readability in the TTY
   console.font = "${pkgs.terminus_font}/share/consolefonts/ter-v32n.psf.gz";
 
-  # Set your time zone and locale
+  # User Account and System Info
   time.timeZone = "America/Chicago";
   i18n.defaultLocale = "en_US.UTF-8";
-
-  # User Account
   users.users.hbohlen = {
     isNormalUser = true;
     description = "Hayden";
-    extraGroups = [ "networkmanager" "wheel" "libvirtd" ]; # "wheel" allows sudo
+    extraGroups = [ "networkmanager" "wheel" "libvirtd" ];
   };
-
-  # Networking
-  networking.networkmanager.enable = true;
   networking.hostName = "zephyrus-m16";
 
-  # Allow unfree packages (for NVIDIA drivers)
+  # Allow unfree packages for NVIDIA drivers
   nixpkgs.config.allowUnfree = true;
 
-  # Hardware-specific services and settings
+  # Services and Daemons
   services = {
-    # ASUS and Graphics Control Services
+    # From asus-linux.org: Enables ROG Control Center and GPU switching
     asusd = {
       enable = true;
       enableUserService = true;
@@ -62,26 +59,31 @@
       desktopManager.gnome.enable = true;
     };
     
-    # Fix for supergfxctl to detect the graphics card
+    # Remap function keys like the microphone mute key
     udev.extraHwdb = ''
       evdev:name:*:dmi:bvn*:bvr*:bd*:svnASUS*:pn*:*
-       KEYBOARD_KEY_ff31007c=f20    # fixes mic mute button
+       KEYBOARD_KEY_ff31007c=f20
     '';
   };
+  # Fix for supergfxctl graphics card detection
   systemd.services.supergfxd.path = [ pkgs.pciutils ];
 
-  # NVIDIA Graphics Configuration
-  hardware.nvidia = {
-    # Use the open-source kernel modules, required for recent drivers
-    open = true;
-    # Add a "Battery Saver" boot option to completely disable the dGPU
-    primeBatterySaverSpecialisation.enable = true;
-  };
-  
-  # Set a battery charge limit to 80% to improve battery longevity
-  hardware.asus.battery.chargeUpto = 80;
+  # Hardware Configuration
+  hardware = {
+    # NVIDIA Graphics Configuration
+    nvidia = {
+      open = true; # Required for newer NVIDIA drivers
+      primeBatterySaverSpecialisation.enable = true; # Creates a "Battery Saver" boot option
+    };
+    
+    # From asus/battery.nix: Set a battery charge limit to 80% to improve battery health
+    asus.battery.chargeUpto = 80;
 
-  # Podman (replaces Docker)
+    # Enable firmware for the built-in Intel Wi-Fi card
+    enableRedistributableFirmware = true;
+  };
+
+  # Podman container engine
   virtualisation.podman = {
     enable = true;
     dockerCompat = true;
@@ -91,9 +93,8 @@
   # System-wide packages
   environment.systemPackages = with pkgs; [ git wget btop fastfetch gnome-tweaks ];
 
-  # Enable experimental Nix features
+  # Enable modern Nix features
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
-  # System state version
   system.stateVersion = "24.05";
 }
