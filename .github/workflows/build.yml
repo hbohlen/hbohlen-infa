@@ -23,9 +23,11 @@ jobs:
       - name: Set up Cachix
         uses: cachix/cachix-action@v15
         with:
-          # Use the variable from your repository settings
           name: ${{ vars.CACHIX_NAME }}
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - name: Build NixOS system
+        # ⭐️ ADD THIS LINE ⭐️
+        # This tells the step to run inside your 'nixos' subfolder
+        working-directory: nixos
         run: nix build .#nixosConfigurations.zephyrus-m16.config.system.build.toplevel
