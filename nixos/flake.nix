@@ -12,11 +12,16 @@
       "zephyrus-m16" = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          # Pass the hardware profile from the flake input
-          nixos-hardware.nixosModules.asus-zephyrus-g603h
-          
-          disko.nixosModules.disko
-          ./disko-config.nix
+          # Base hardware profile for your laptop
+          nixos-hardware.nixosModules.asus-zephyrus-gu603h,
+
+          # Optional hardware modules for extra features
+          nixos-hardware.nixosModules.asus-battery,
+          nixos-hardware.nixosModules.asus-zephyrus-shared-backlight,
+
+          # Your disk configuration and main system config
+          disko.nixosModules.disko,
+          ./disko-config.nix,
           ./configuration.nix
         ];
       };
