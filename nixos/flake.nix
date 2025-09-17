@@ -23,8 +23,8 @@
           # ⭐️ REMOVED the shared-backlight module from here ⭐️
 
           # Your disk configuration and main system config
-          disko.nixosModules.disko,
-          ./disko-config.nix,
+          disko.nixosModules.disko
+          ./disko-config.nix
           ./configuration.nix
         ];
       };
