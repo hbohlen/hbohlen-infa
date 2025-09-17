@@ -1,30 +1,14 @@
 { config, pkgs, ... }:
 
 {
-  # The hardware import is now handled by your flake.nix
+  # The main hardware profile and optional modules (battery, backlight)
+  # are now imported by your flake.nix
 
-  # Bootloader, Kernel, and Hardware Tweaks
-  boot = {
-    # Use the latest kernel for the best hardware support
-    kernelPackages = pkgs.linuxPackages_latest;
-    loader = {
-      systemd-boot.enable = true;
-      efi.canTouchEfiVariables = true;
-    };
-
-    # Kernel parameters from asus/zephyrus/shared/backlight.nix
-    # These fix screen brightness control in hybrid graphics mode.
-    kernelParams = [
-      "quiet"
-      "splash"
-      "i915.enable_dpcd_backlight=1"
-      "nvidia.NVreg_EnableBacklightHandler=0"
-      "nvidia.NVReg_RegistryDwords=EnableBrightnessControl=0"
-    ];
-  };
-  
-  # HiDPI console font for better readability in the TTY
-  console.font = "${pkgs.terminus_font}/share/consolefonts/ter-v32n.psf.gz";
+  # Bootloader and Kernel
+  boot.kernelPackages = pkgs.linuxPackages_latest;
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+  boot.kernelParams = [ "quiet" "splash" ];
 
   # User Account and System Info
   time.timeZone = "America/Chicago";
@@ -39,13 +23,11 @@
   # Allow unfree packages for NVIDIA drivers
   nixpkgs.config.allowUnfree = true;
 
-  # Services and Daemons
+  # Essential Services and Daemons for this hardware
   services = {
-    # From asus-linux.org: Enables ROG Control Center and GPU switching
-    asusd = {
-      enable = true;
-      enableUserService = true;
-    };
+    # For ROG hardware control and GPU switching
+    asusd.enable = true;
+    asusd.enableUserService = true;
     supergfxd.enable = true;
 
     # GNOME Desktop Environment
@@ -54,30 +36,12 @@
       displayManager.gdm.enable = true;
       desktopManager.gnome.enable = true;
     };
-    
-    # Remap function keys like the microphone mute key
-    udev.extraHwdb = ''
-      evdev:name:*:dmi:bvn*:bvr*:bd*:svnASUS*:pn*:*
-       KEYBOARD_KEY_ff31007c=f20
-    '';
   };
   # Fix for supergfxctl graphics card detection
   systemd.services.supergfxd.path = [ pkgs.pciutils ];
 
-  # Hardware Configuration
-  hardware = {
-    # NVIDIA Graphics Configuration
-    nvidia = {
-      open = true; # Required for newer NVIDIA drivers
-      primeBatterySaverSpecialisation.enable = true; # Creates a "Battery Saver" boot option
-    };
-    
-    # From asus/battery.nix: Set a battery charge limit to 80% to improve battery health
-    asus.battery.chargeUpto = 80;
-
-    # Enable firmware for the built-in Intel Wi-Fi card
-    enableRedistributableFirmware = true;
-  };
+  # Essential Hardware Configuration
+  hardware.enableRedistributableFirmware = true; # For the Intel Wi-Fi card
 
   # Podman container engine
   virtualisation.podman = {
