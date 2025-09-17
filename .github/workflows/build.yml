@@ -29,5 +29,4 @@ jobs:
       - name: Build NixOS system
         # ⭐️ ADD THIS LINE ⭐️
         # This tells the step to run inside your 'nixos' subfolder
-        working-directory: nixos
-        run: nix build .#nixosConfigurations.zephyrus-m16.config.system.build.toplevel
+        run: nix build ./nixos#nixosConfigurations.zephyrus-m16.config.system.build.toplevel
