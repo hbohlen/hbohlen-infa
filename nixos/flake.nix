@@ -15,10 +15,10 @@
         system = "x86_64-linux";
         modules = [
           # Base hardware profile for your laptop
-          nixos-hardware.nixosModules.asus-zephyrus-gu603h,
+          nixos-hardware.nixosModules.asus-zephyrus-gu603h
 
           # Optional hardware module for battery control
-          nixos-hardware.nixosModules.asus-battery,
+          nixos-hardware.nixosModules.asus-battery
           
           # ⭐️ REMOVED the shared-backlight module from here ⭐️
 
