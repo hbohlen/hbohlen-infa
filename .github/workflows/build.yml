@@ -27,7 +27,8 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - name: Build NixOS system
-        # ⭐️ ADD THIS LINE ⭐️
-        # This tells the step to run inside your 'nixos' subfolder
         working-directory: nixos
-        run: nix build ./nixos#nixosConfigurations.zephyrus-m16.config.system.build.toplevel
+        # ⭐️ CHANGE THIS LINE ⭐️
+        # From: nix build ./nixos#...
+        # To:   nix build .#...
+        run: nix build .#nixosConfigurations.zephyrus-m16.config.system.build.toplevel
