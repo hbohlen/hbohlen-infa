@@ -1,3 +1,5 @@
+# flake.nix
+
 {
   description = "Hayden's NixOS configuration for Zephyrus M16";
 
@@ -13,15 +15,16 @@
         system = "x86_64-linux";
         modules = [
           # Base hardware profile for your laptop
-          nixos-hardware.nixosModules.asus-zephyrus-gu603h
+          nixos-hardware.nixosModules.asus-zephyrus-gu603h,
 
-          # Optional hardware modules for extra features
-          nixos-hardware.nixosModules.asus-battery
-          nixos-hardware.nixosModules.asus-zephyrus-shared-backlight
+          # Optional hardware module for battery control
+          nixos-hardware.nixosModules.asus-battery,
+          
+          # ⭐️ REMOVED the shared-backlight module from here ⭐️
 
           # Your disk configuration and main system config
-          disko.nixosModules.disko
-          ./disko-config.nix
+          disko.nixosModules.disko,
+          ./disko-config.nix,
           ./configuration.nix
         ];
       };

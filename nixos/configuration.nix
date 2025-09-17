@@ -1,14 +1,27 @@
+# configuration.nix
+
 { config, pkgs, ... }:
 
 {
-  # The main hardware profile and optional modules (battery, backlight)
-  # are now imported by your flake.nix
+  # Bootloader, Kernel, and Hardware Tweaks
+  boot = {
+    kernelPackages = pkgs.linuxPackages_latest;
+    loader = {
+      systemd-boot.enable = true;
+      efi.canTouchEfiVariables = true;
+    };
 
-  # Bootloader and Kernel
-  boot.kernelPackages = pkgs.linuxPackages_latest;
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-  boot.kernelParams = [ "quiet" "splash" ];
+    # ⭐️ ADDED THIS BLOCK ⭐️
+    # Manually add kernel parameters from asus/zephyrus/shared/backlight.nix
+    # to fix screen brightness control in hybrid graphics mode.
+    kernelParams = [
+      "quiet"
+      "splash"
+      "i915.enable_dpcd_backlight=1"
+      "nvidia.NVreg_EnableBacklightHandler=0"
+      "nvidia.NVReg_RegistryDwords=EnableBrightnessControl=0"
+    ];
+  };
 
   # User Account and System Info
   time.timeZone = "America/Chicago";
@@ -25,23 +38,21 @@
 
   # Essential Services and Daemons for this hardware
   services = {
-    # For ROG hardware control and GPU switching
     asusd.enable = true;
     asusd.enableUserService = true;
     supergfxd.enable = true;
 
-    # GNOME Desktop Environment
     xserver = {
       enable = true;
       displayManager.gdm.enable = true;
       desktopManager.gnome.enable = true;
     };
   };
-  # Fix for supergfxctl graphics card detection
   systemd.services.supergfxd.path = [ pkgs.pciutils ];
 
   # Essential Hardware Configuration
   hardware.enableRedistributableFirmware = true; # For the Intel Wi-Fi card
+  hardware.asus.battery.chargeUpto = 80; # Set battery charge limit
 
   # Podman container engine
   virtualisation.podman = {
