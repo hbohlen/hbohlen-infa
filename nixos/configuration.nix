@@ -1,11 +1,7 @@
 { config, pkgs, ... }:
 
 {
-  imports = [
-    # This is the key hardware-specific import for your laptop from nixos-hardware.
-    # It handles the base configuration for your Intel CPU and NVIDIA PRIME graphics.
-    "${builtins.fetchGit { url = "https://github.com/NixOS/nixos-hardware.git"; }}/asus/zephyrus/g603h"
-  ];
+  # The hardware import is now handled by your flake.nix
 
   # Bootloader, Kernel, and Hardware Tweaks
   boot = {
